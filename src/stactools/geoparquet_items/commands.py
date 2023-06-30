@@ -6,6 +6,7 @@ import click
 import requests
 import stac_geoparquet
 from click import Command, Group
+from pystac import Asset, Collection
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,12 @@ def create_geoparquetitems_command(cli: Group) -> Command:
     @geoparquetitems.command("create", short_help="Create geoparquet from Items")
     @click.argument("source")
     @click.argument("destination")
-    def create_command(source: str, destination: str) -> None:
+    @click.option(
+        "--collection",
+        default="",
+        help="Adds a geoparquet asset to the Collection JSON at the given path.",
+    )
+    def create_command(source: str, destination: str, collection: str = "") -> None:
         """Creates a STAC Item
 
         Args:
@@ -54,6 +60,17 @@ def create_geoparquetitems_command(cli: Group) -> Command:
             df.to_parquet(destination)
         else:
             raise Exception("No items found")
+
+        if len(collection) > 0:
+            stac_collection = Collection.from_file(collection)
+            asset = Asset(
+                href=destination,
+                media_type="application/x-parquet",
+                roles=["stac-items"],
+                title="GeoParquet STAC Items",
+            )
+            stac_collection.add_asset("geoparquet-items", asset)
+            stac_collection.save_object(dest_href=collection)
 
         return None
 

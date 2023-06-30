@@ -17,14 +17,16 @@ pip install stactools-geoparquet-items
 
 ## Command-line Usage
 
-Description of the command line functions
+You need to provide a folder to read the items (deeply) from.
+Then you provide a file to write the geoparquet to.
+Optionally, you can add the geoparquet as an asset to a STAC Collection.
 
 ```shell
 stac geoparquet-items create https://example.com/collections/id/items result.geoparquet
 ```
 
 ```shell
-stac geoparquet-items create /path/to/folder result.geoparquet
+stac geoparquet-items create /path/to/folder result.geoparquet --collection /path/to/collection.json
 ```
 
 Use `stac geoparquet-items --help` to see all subcommands and options.

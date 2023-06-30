@@ -1,0 +1,25 @@
+#!/bin/bash
+
+set -e
+
+if [[ -n "${STACTOOLS_DEBUG}" ]]; then
+    set -x
+fi
+
+function usage() {
+    echo -n \
+        "Usage: $(basename "$0")
+Runs CI in the docker dev container.
+"
+}
+
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+    docker build $PULL \
+        -t stactools-packages/ephemeral:dev \
+        -f docker/Dockerfile \
+        --target dev-builder \
+        .
+    docker run --rm \
+        --entrypoint scripts/cibuild \
+        stactools-packages/ephemeral:dev
+fi

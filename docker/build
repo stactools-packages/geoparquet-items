@@ -1,0 +1,52 @@
+#!/bin/bash
+
+set -e
+
+if [[ -n "${STACTOOLS_DEBUG}" ]]; then
+    set -x
+fi
+
+function usage() {
+
+    echo -n \
+        "Usage: $(basename "$0")
+Builds project containers. Must be run from the repository root.
+
+Options:
+--pull    Attempt to pull upstream images before building
+"
+}
+
+while [[ $# -gt 0 ]]
+do
+    key="$1"
+    case $key in
+        --help)
+        usage
+        exit 0
+        ;;
+
+        --pull)
+        PULL="--pull"
+        shift
+        ;;
+    esac
+done
+
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+    if [ "${1:-}" = "--help" ]; then
+        usage
+    else
+        docker build $PULL \
+            -t stactools-packages/ephemeral:latest \
+            -f docker/Dockerfile \
+            --target builder \
+            .
+        docker build $PULL \
+            -t stactools-packages/ephemeral:dev \
+            -f docker/Dockerfile \
+            --target dev-builder \
+            .
+    fi
+    exit
+fi

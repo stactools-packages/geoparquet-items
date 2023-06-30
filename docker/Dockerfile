@@ -34,7 +34,7 @@ RUN pip install -U pip \
     && pip install . --no-binary rasterio
 WORKDIR /
 RUN rm -rf /opt/stactools-geoparquet-items
-CMD [ "stac", "geoparquetitems" ]
+CMD [ "stac", "geoparquet-items" ]
 
 
 FROM dependencies as dev-dependencies
@@ -55,4 +55,4 @@ COPY --from=base /opt/conda /opt/conda
 COPY --from=dependencies /opt/venv /opt/venv
 COPY . .
 RUN pip install -e .
-CMD [ "stac", "geoparquetitems" ]
+CMD [ "stac", "geoparquet-items" ]

@@ -16,7 +16,7 @@ Steps to reproduce the behavior:
 > Ex.
 >
 > 1. Install stactools-geoparquet-items
-> 2. Run `scripts/test`
+> 2. Run `stac geoparquet-items create ...`
 > 3. See error
 
 **Expected behavior**

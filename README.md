@@ -47,9 +47,3 @@ To check all files:
 ```shell
 pre-commit run --all-files
 ```
-
-To run the tests:
-
-```shell
-pytest -vv
-```

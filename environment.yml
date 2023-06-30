@@ -1,4 +1,4 @@
-name: stactools-ephemeral
+name: stactools-geoparquet-items
 channels:
   - conda-forge
   - defaults

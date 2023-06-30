@@ -6,12 +6,12 @@ import pystac
 from click import Command, Group
 from stactools.testing.cli_test import CliTestCase
 
-from stactools.ephemeral.commands import create_ephemeralcmd_command
+from stactools.geoparquet_items.commands import create_geoparquetitems_command
 
 
 class CommandsTest(CliTestCase):
     def create_subcommand_functions(self) -> List[Callable[[Group], Command]]:
-        return [create_ephemeralcmd_command]
+        return [create_geoparquetitems_command]
 
     def test_create_collection(self) -> None:
         with TemporaryDirectory() as tmp_dir:
@@ -20,7 +20,7 @@ class CommandsTest(CliTestCase):
             # Example:
             destination = os.path.join(tmp_dir, "collection.json")
 
-            result = self.run_command(f"ephemeralcmd create-collection {destination}")
+            result = self.run_command(f"geoparquetitems create-collection {destination}")
 
             assert result.exit_code == 0, "\n{}".format(result.output)
 
@@ -41,7 +41,7 @@ class CommandsTest(CliTestCase):
             infile = "/path/to/asset.tif"
             destination = os.path.join(tmp_dir, "item.json")
             result = self.run_command(
-                f"ephemeralcmd create-item {infile} {destination}"
+                f"geoparquetitems create-item {infile} {destination}"
             )
             assert result.exit_code == 0, "\n{}".format(result.output)
 

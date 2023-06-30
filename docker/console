@@ -15,8 +15,8 @@ Run a console in a docker container with all prerequisites installed.
 
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     docker run --rm -it \
-        -v "$(pwd)":/opt/stactools-ephemeral \
+        -v "$(pwd)":/opt/stactools-geoparquet-items \
         -p 8000:8000 \
         --entrypoint /bin/bash \
-        stactools-packages/ephemeral:dev
+        stactools-packages/geoparquet-items:dev
 fi

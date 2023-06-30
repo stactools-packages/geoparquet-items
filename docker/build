@@ -38,12 +38,12 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
         usage
     else
         docker build $PULL \
-            -t stactools-packages/ephemeral:latest \
+            -t stactools-packages/geoparquet-items:latest \
             -f docker/Dockerfile \
             --target builder \
             .
         docker build $PULL \
-            -t stactools-packages/ephemeral:dev \
+            -t stactools-packages/geoparquet-items:dev \
             -f docker/Dockerfile \
             --target dev-builder \
             .

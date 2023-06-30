@@ -1,4 +1,4 @@
-from stactools.ephemeral import stac
+from stactools.geoparquet_items import stac
 
 
 def test_create_collection() -> None:

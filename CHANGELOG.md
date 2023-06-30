@@ -25,4 +25,4 @@ number as needed.
 
 - Nothing.
 
-[Unreleased]: <https://github.com/stactools-packages/ephemeral/tree/main/>
+[Unreleased]: <https://github.com/stactools-packages/geoparquet-items/tree/main/>

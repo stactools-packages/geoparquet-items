@@ -15,11 +15,11 @@ Runs CI in the docker dev container.
 
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     docker build $PULL \
-        -t stactools-packages/ephemeral:dev \
+        -t stactools-packages/geoparquet-items:dev \
         -f docker/Dockerfile \
         --target dev-builder \
         .
     docker run --rm \
         --entrypoint scripts/cibuild \
-        stactools-packages/ephemeral:dev
+        stactools-packages/geoparquet-items:dev
 fi

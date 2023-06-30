@@ -17,6 +17,6 @@ will be reflected in the execution.
 
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     docker run --rm -it \
-        -v "$(pwd)":/opt/stactools-ephemeral \
-        stactools-packages/ephemeral:dev "${@}"
+        -v "$(pwd)":/opt/stactools-geoparquet-items \
+        stactools-packages/geoparquet-items:dev "${@}"
 fi

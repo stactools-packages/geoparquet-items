@@ -12,4 +12,4 @@ def register_plugin(registry: Registry) -> None:
     registry.register_subcommand(commands.create_geoparquetitems_command)
 
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"

@@ -6,7 +6,6 @@ import click
 import requests
 import stac_geoparquet
 from click import Command, Group
-from pystac import Asset, Collection
 
 logger = logging.getLogger(__name__)
 
@@ -62,15 +61,22 @@ def create_geoparquetitems_command(cli: Group) -> Command:
             raise Exception("No items found")
 
         if len(collection) > 0:
-            stac_collection = Collection.from_file(collection)
-            asset = Asset(
-                href=destination,
-                media_type="application/x-parquet",
-                roles=["stac-items"],
-                title="GeoParquet STAC Items",
-            )
-            stac_collection.add_asset("geoparquet-items", asset)
-            stac_collection.save_object(dest_href=collection)
+            with open(collection, 'r+') as f:
+                collection_json = json.load(f)
+                if "assets" not in collection_json:
+                    collection_json["assets"] = {}
+                
+                basepath = os.path.abspath(os.path.dirname(collection))
+                collection_json["assets"]["geoparquet-items"] = {
+                    "href": os.path.relpath(destination, basepath),
+                    "type": "application/x-parquet",
+                    "roles": ["stac-items"],
+                    "title": "GeoParquet STAC Items",
+                }
+
+                f.seek(0)
+                json.dump(collection_json, f, indent = 2)
+                f.truncate()
 
         return None
 

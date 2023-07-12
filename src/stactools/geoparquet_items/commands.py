@@ -38,25 +38,41 @@ def create_geoparquetitems_command(cli: Group) -> Command:
 
         items = []
         if source.startswith("https://") or source.startswith("http://"):
+            print("Requesting remote source")
             response = requests.get(source)
             features = response.json().get("features")
             if features is not None:
                 items = features
         elif os.path.exists(source):
+            print("Reading from file system")
+            paths = []
             for root, _, files in os.walk(source):
                 for name in files:
                     if not name.endswith(".json"):
                         continue
+                    elif name == "catalog.json" or name == "collection.json":
+                        continue
+                    else:
+                        path = os.path.join(root, name)
+                        paths.append(path)
+            
+            print("Found {} potential STAC Items".format(len(paths)))
 
-                    path = os.path.join(root, name)
-                    with open(path) as f:
-                        item = json.load(f)
-                        if item["type"] == "Feature":
-                            items.append(item)
-
-        if len(items) > 0:
+            for path in paths:
+                with open(path) as f:
+                    item = json.load(f)
+                    if item["type"] == "Feature":
+                        items.append(item)
+        
+        num = len(items)
+        if num > 0:
+            print("Loaded {} actual STAC Items".format(num))
             df = stac_geoparquet.to_geodataframe(items)
+            del items
+            print("Created dataframe")
             df.to_parquet(destination)
+            del df
+            print("Wrote geoparquet file")
         else:
             raise Exception("No items found")
 
@@ -77,6 +93,7 @@ def create_geoparquetitems_command(cli: Group) -> Command:
                 f.seek(0)
                 json.dump(collection_json, f, indent = 2)
                 f.truncate()
+                print("Updated STAC Collection")
 
         return None
 

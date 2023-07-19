@@ -1,3 +1,4 @@
+import io
 import json
 import logging
 import os
@@ -8,8 +9,8 @@ import shutil
 from typing import Optional
 
 import click
-import dask
 import dask.bag as db
+import dask_geopandas
 import geopandas
 import pyarrow.parquet as pq
 import pyogrio
@@ -101,14 +102,22 @@ def create_geoparquetitems_command(cli: Group) -> Command:
 
         if bag is not None:
             print("Initialized for parallel processing")
-            parts = bag.map_partitions(stac_geoparquet.to_geodataframe)
-            dfs = parts.to_delayed()
+            # Taken from Tom Augpurger's notbook at
+            # https://notebooksharing.space/view/1c2922b90622013d91dc22182e7f60d64e119c0f7cf1f977ccaa4dd0994bd1b6
+            sample = stac_geoparquet.to_geodataframe(bag.take(1))
+            meta = sample.iloc[:0, :]
 
-            tasks = [
-                obj.to_parquet(f"{destination}/part.{i}.parquet")
-                for i, obj in enumerate(dfs)
-            ]
-            dask.compute(*tasks)
+            dfs = bag.map_partitions(stac_geoparquet.to_geodataframe)
+            df = dask_geopandas.GeoDataFrame(
+                dfs.dask, dfs.name, meta, [None] * (dfs.npartitions + 1)
+            )
+
+            buf = io.BytesIO()
+            sample.to_parquet(buf, engine="pyarrow")
+            buf.seek(0)
+            schema = pq.read_schema(buf)
+
+            df.to_parquet(destination, schema=schema, write_index=False)
             print("Wrote geoparquet file(s)")
         else:
             for p in paths:

@@ -49,7 +49,7 @@ stac geoparquet-items convert source.geoparquet result.fgb --format flatgeobuf -
 
 Supported formats: flatgeobuf, geojson, geojsonseq, gpkg (default), shapefile
 
-### Show information about geoparquet file
+### Show information about a geoparquet file
 
 You can easily retrieve metadata and a data excerpt:
 

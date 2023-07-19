@@ -238,7 +238,12 @@ def create_geoparquetitems_command(cli: Group) -> Command:
         "info", short_help="Show some information about a geoparquet file"
     )
     @click.argument("source")
-    def info_command(source: str) -> None:
+    @click.option(
+        "--columns",
+        default="",
+        help="A list of comma-separated fields to shown in the excerpt."
+    )
+    def info_command(source: str, columns: str = "") -> None:
         """Print some information about a geoparquet file
 
         Args:
@@ -260,8 +265,12 @@ def create_geoparquetitems_command(cli: Group) -> Command:
         print("")
 
         print("Excerpt:")
+        if len(columns) > 0:
+            columnList = columns.split(",")
+        else:
+            columnList = None
         pf = pq.ParquetFile(source) 
-        rows = next(pf.iter_batches(batch_size = 10)) 
+        rows = next(pf.iter_batches(batch_size = 10, columns = columnList)) 
         df = pyarrow.Table.from_batches([rows]).to_pandas()
         print(df)
 

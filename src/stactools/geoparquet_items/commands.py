@@ -1,21 +1,21 @@
 import json
 import logging
 import os
+
+# Used only for partitioning / dask variant
+import pathlib
+import shutil
 from typing import Optional
 
 import click
+import dask
+import dask.bag as db
 import geopandas
 import pyarrow.parquet as pq
 import pyogrio
 import requests
 import stac_geoparquet
 from click import Command, Group
-
-# Used only for partitioning / dask variant
-import pathlib
-import shutil
-import dask
-import dask.bag as db
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,9 @@ def create_geoparquetitems_command(cli: Group) -> Command:
         default=1,
         help="Runs via dask and creates the number of partitions given (if >= 2)",
     )
-    def create_command(source: str, destination: str, collection: str = "", partition: int = 1) -> None:
+    def create_command(
+        source: str, destination: str, collection: str = "", partition: int = 1
+    ) -> None:
         """Create geoparquet from STAC Items
 
         Args:
@@ -58,13 +60,22 @@ def create_geoparquetitems_command(cli: Group) -> Command:
         else:
             p.unlink(missing_ok=True)
 
+        if partition > 1:
+            p.mkdir()
+            print("Created destination folder")
+
         items = []
+        bag = None
         if source.startswith("https://") or source.startswith("http://"):
             print("Requesting remote source")
             response = requests.get(source)
             features = response.json().get("features")
             if features is not None:
                 items = features
+
+            if partition > 1:
+                bag = db.from_sequence(items, npartitions=partition)
+
         elif os.path.exists(source):
             print("Reading from file system")
             paths = []
@@ -76,37 +87,37 @@ def create_geoparquetitems_command(cli: Group) -> Command:
                         continue
                     else:
                         path = os.path.join(root, name)
-                        paths.append(path)
+                        paths.append(pathlib.Path(path))
 
             print("Found {} potential STAC Items".format(len(paths)))
 
-        if partition >= 2:
-            p.mkdir()
-            print("Created destination folder")
-
-            items = (
-                db.from_sequence(paths, npartitions=partition)
+            if partition > 1:
+                bag = (
+                    db.from_sequence(paths, npartitions=partition)
                     .map(lambda file: file.read_text())
                     .map(json.loads)
-                    .filter(lambda item: item['type'] == "Feature")
-            )
-            parts = items.map_partitions(stac_geoparquet.to_geodataframe)
+                    .filter(lambda item: item["type"] == "Feature")
+                )
+
+        if bag is not None:
+            print("Initialized for parallel processing")
+            parts = bag.map_partitions(stac_geoparquet.to_geodataframe)
             dfs = parts.to_delayed()
 
             tasks = [
-                obj.to_parquet(f"{destination}/part.{i}.parquet") for i, obj in enumerate(dfs)
+                obj.to_parquet(f"{destination}/part.{i}.parquet")
+                for i, obj in enumerate(dfs)
             ]
-            print("Initialized tasks")
             dask.compute(*tasks)
             print("Wrote geoparquet file(s)")
         else:
-            for path in paths:
-                with path.open() as f:
+            for p in paths:
+                with p.open() as f:
                     item = json.load(f)
                     if item["type"] == "Feature":
                         items.append(item)
             del paths
-            
+
             num = len(items)
             if num > 0:
                 print(f"Loaded {num} actual STAC Items")

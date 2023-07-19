@@ -1,9 +1,16 @@
+import io
 import json
 import logging
 import os
+
+# Used only for partitioning / dask variant
+import pathlib
+import shutil
 from typing import Optional
 
 import click
+import dask.bag as db
+import dask_geopandas
 import geopandas
 import pyarrow.parquet as pq
 import pyogrio
@@ -34,21 +41,42 @@ def create_geoparquetitems_command(cli: Group) -> Command:
         default="",
         help="Adds a geoparquet asset to the Collection JSON at the given path.",
     )
-    def create_command(source: str, destination: str, collection: str = "") -> None:
+    @click.option(
+        "--partition",
+        default=1,
+        help="Runs via dask and creates the number of partitions given (if >= 2)",
+    )
+    def create_command(
+        source: str, destination: str, collection: str = "", partition: int = 1
+    ) -> None:
         """Create geoparquet from STAC Items
 
         Args:
             source (str): Link to a list of STAC Items (ItemCollection) or a folder with STAC files.
             destination (str): Path where the geoparquet file will be stored.
         """
+        p = pathlib.Path(destination)
+        if p.is_dir():
+            shutil.rmtree(p, ignore_errors=True)
+        else:
+            p.unlink(missing_ok=True)
+
+        if partition > 1:
+            p.mkdir()
+            print("Created destination folder")
 
         items = []
+        bag = None
         if source.startswith("https://") or source.startswith("http://"):
             print("Requesting remote source")
             response = requests.get(source)
             features = response.json().get("features")
             if features is not None:
                 items = features
+
+            if partition > 1:
+                bag = db.from_sequence(items, npartitions=partition)
+
         elif os.path.exists(source):
             print("Reading from file system")
             paths = []
@@ -60,27 +88,56 @@ def create_geoparquetitems_command(cli: Group) -> Command:
                         continue
                     else:
                         path = os.path.join(root, name)
-                        paths.append(path)
+                        paths.append(pathlib.Path(path))
 
             print("Found {} potential STAC Items".format(len(paths)))
 
-            for path in paths:
-                with open(path) as f:
+            if partition > 1:
+                bag = (
+                    db.from_sequence(paths, npartitions=partition)
+                    .map(lambda file: file.read_text())
+                    .map(json.loads)
+                    .filter(lambda item: item["type"] == "Feature")
+                )
+
+        if bag is not None:
+            print("Initialized for parallel processing")
+            # Taken from Tom Augpurger's notbook at
+            # https://notebooksharing.space/view/1c2922b90622013d91dc22182e7f60d64e119c0f7cf1f977ccaa4dd0994bd1b6
+            sample = stac_geoparquet.to_geodataframe(bag.take(1))
+            meta = sample.iloc[:0, :]
+
+            dfs = bag.map_partitions(stac_geoparquet.to_geodataframe)
+            df = dask_geopandas.GeoDataFrame(
+                dfs.dask, dfs.name, meta, [None] * (dfs.npartitions + 1)
+            )
+
+            buf = io.BytesIO()
+            sample.to_parquet(buf, engine="pyarrow")
+            buf.seek(0)
+            schema = pq.read_schema(buf)
+
+            df.to_parquet(destination, schema=schema, write_index=False)
+            print("Wrote geoparquet file(s)")
+        else:
+            for p in paths:
+                with p.open() as f:
                     item = json.load(f)
                     if item["type"] == "Feature":
                         items.append(item)
+            del paths
 
-        num = len(items)
-        if num > 0:
-            print("Loaded {} actual STAC Items".format(num))
-            df = stac_geoparquet.to_geodataframe(items)
-            del items
-            print("Created dataframe")
-            df.to_parquet(destination)
-            del df
-            print("Wrote geoparquet file")
-        else:
-            raise Exception("No items found")
+            num = len(items)
+            if num > 0:
+                print(f"Loaded {num} actual STAC Items")
+                df = stac_geoparquet.to_geodataframe(items)
+                del items
+                print("Created dataframe")
+                df.to_parquet(destination)
+                del df
+                print("Wrote geoparquet file")
+            else:
+                raise Exception("Aborting, no items available")
 
         if len(collection) > 0:
             with open(collection, "r+") as f:

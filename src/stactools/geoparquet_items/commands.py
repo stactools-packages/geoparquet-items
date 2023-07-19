@@ -12,6 +12,7 @@ import click
 import dask.bag as db
 import dask_geopandas
 import geopandas
+import pyarrow
 import pyarrow.parquet as pq
 import pyogrio
 import requests
@@ -44,12 +45,15 @@ def create_geoparquetitems_command(cli: Group) -> Command:
     @click.option(
         "--partition",
         default=1,
+        show_default=True,
         help="Runs via dask and creates the number of partitions given (if >= 2)",
     )
     @click.option(
         "--selflink",
         default=False,
+        show_default=True,
         help="Tries to add the absolute link to the source STAC Item to a column named 'self_link'",
+        is_flag=True,
     )
     def create_command(
         source: str,
@@ -181,9 +185,9 @@ def create_geoparquetitems_command(cli: Group) -> Command:
         "--exclude",
         "-e",
         default=",".join(IGNORE_FIELDS),
+        show_default=True,
         help="A list of comma-separated fields that should be excluded from the target file. "
-        + " Use 'none' to include all fields. Default: "
-        + ",".join(IGNORE_FIELDS),
+        + " Use 'none' to include all fields."
     )
     @click.option(
         "--format",
@@ -193,7 +197,8 @@ def create_geoparquetitems_command(cli: Group) -> Command:
             case_sensitive=False,
         ),
         default="gpkg",
-        help="File format to convert to. Default: gpkg",
+        show_default=True,
+        help="File format to convert to.",
     )
     def convert_command(
         source: str,
@@ -226,6 +231,39 @@ def create_geoparquetitems_command(cli: Group) -> Command:
 
         df = geopandas.read_parquet(source, columns=columns)
         pyogrio.write_dataframe(df, destination, driver=format)
+
+        return None
+
+    @geoparquetitems.command(
+        "info", short_help="Show some information about a geoparquet file"
+    )
+    @click.argument("source")
+    def info_command(source: str) -> None:
+        """Print some information about a geoparquet file
+
+        Args:
+            source (str): Path where the geoparquet file is located.
+        """
+        if not os.path.exists(source):
+            raise Exception("Source file does not exist")
+        
+        metadata = pq.read_metadata(source)
+        
+        print("Parquet Format Version:", metadata.format_version)
+        print("Created by:", metadata.created_by)
+        print("Columns:", metadata.num_columns, "(", ", ".join(metadata.schema.names), ")")
+        print("Rows/Items:", metadata.num_rows, "in", metadata.num_row_groups, "groups")
+        print("")
+
+        geo = json.loads(metadata.metadata[b"geo"])
+        print("GeoParquet metadata:", geo)
+        print("")
+
+        print("Excerpt:")
+        pf = pq.ParquetFile(source) 
+        rows = next(pf.iter_batches(batch_size = 10)) 
+        df = pyarrow.Table.from_batches([rows]).to_pandas()
+        print(df)
 
         return None
 

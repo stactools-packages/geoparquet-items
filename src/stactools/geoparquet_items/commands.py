@@ -6,7 +6,7 @@ import os
 # Used only for partitioning / dask variant
 import pathlib
 import shutil
-from typing import Optional
+from typing import Any, Optional, Sequence
 
 import click
 import dask.bag as db
@@ -46,8 +46,17 @@ def create_geoparquetitems_command(cli: Group) -> Command:
         default=1,
         help="Runs via dask and creates the number of partitions given (if >= 2)",
     )
+    @click.option(
+        "--selflink",
+        default=False,
+        help="Tries to add the absolute link to the source STAC Item to a column named 'self_link'",
+    )
     def create_command(
-        source: str, destination: str, collection: str = "", partition: int = 1
+        source: str,
+        destination: str,
+        collection: str = "",
+        partition: int = 1,
+        selflink: bool = False,
     ) -> None:
         """Create geoparquet from STAC Items
 
@@ -100,14 +109,17 @@ def create_geoparquetitems_command(cli: Group) -> Command:
                     .filter(lambda item: item["type"] == "Feature")
                 )
 
+        def create_fn(items: Sequence[dict[str, Any]]) -> geopandas.GeoDataFrame:
+            return stac_geoparquet.to_geodataframe(items, add_self_link=selflink)
+
         if bag is not None:
             print("Initialized for parallel processing")
             # Taken from Tom Augpurger's notbook at
             # https://notebooksharing.space/view/1c2922b90622013d91dc22182e7f60d64e119c0f7cf1f977ccaa4dd0994bd1b6
-            sample = stac_geoparquet.to_geodataframe(bag.take(1))
+            sample = create_fn(bag.take(1))
             meta = sample.iloc[:0, :]
 
-            dfs = bag.map_partitions(stac_geoparquet.to_geodataframe)
+            dfs = bag.map_partitions(create_fn)
             df = dask_geopandas.GeoDataFrame(
                 dfs.dask, dfs.name, meta, [None] * (dfs.npartitions + 1)
             )
@@ -130,7 +142,7 @@ def create_geoparquetitems_command(cli: Group) -> Command:
             num = len(items)
             if num > 0:
                 print(f"Loaded {num} actual STAC Items")
-                df = stac_geoparquet.to_geodataframe(items)
+                df = create_fn(items)
                 del items
                 print("Created dataframe")
                 df.to_parquet(destination)

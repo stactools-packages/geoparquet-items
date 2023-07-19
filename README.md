@@ -17,6 +17,10 @@ pip install stactools-geoparquet-items
 
 ## Command-line Usage
 
+Use `stac geoparquet-items --help` to see all subcommands and options.
+
+### Create GeoParquet from STAC Items
+
 You need to provide a folder to read the items (deeply) from.
 Then you provide a file to write the geoparquet to.
 Optionally, you can add the geoparquet as an asset to a STAC Collection.
@@ -29,7 +33,21 @@ stac geoparquet-items create https://example.com/collections/id/items result.geo
 stac geoparquet-items create /path/to/folder result.geoparquet --collection /path/to/collection.json
 ```
 
-Use `stac geoparquet-items --help` to see all subcommands and options.
+### Convert from GeoParquet to other file formats
+
+Convert from geoparquet to GeoPackage (without stac_version, type and assets):
+
+```shell
+stac geoparquet-items convert source.geoparquet result.gpkg
+```
+
+Convert to FlatGeoBuf and exclude even more fields:
+
+```shell
+stac geoparquet-items convert source.geoparquet result.fgb --format flatgeobuf --exclude stac_version,type,assets,links,collection
+```
+
+Supported formats: flatgeobuf, geojson, geojsonseq, gpkg (default), shapefile
 
 ## Contributing
 

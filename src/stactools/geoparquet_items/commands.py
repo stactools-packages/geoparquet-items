@@ -32,6 +32,44 @@ def is_self_link(link: Dict[str, Any]) -> bool:
         and urlparse(link["href"]).netloc
     )
 
+def get_external_browser_path(url) -> str:
+    if url.scheme != "https":
+        tpl = r"/external/{scheme}:/{host}{path}"
+    else:
+        tpl = r"/external/{host}{path}"
+
+    return tpl.format(
+        scheme = url.scheme,
+        host = url.netloc,
+        path = url.path
+    )
+
+def get_browser_path(url_str: str, baseurl_str: str = None) -> str:
+    url = urlparse(url_str)
+    baseurl = urlparse(baseurl_str) if baseurl_str else None
+
+    if baseurl is None or url.netloc != baseurl.netloc or url.scheme != baseurl.scheme:
+        # external url
+        return get_external_browser_path(url)
+    else:
+        # internal url
+        url_path = url.path.split("/")
+        baseurl_path = baseurl.path.split("/")
+
+        if baseurl_path[-1] == "" or baseurl_path[-1].endswith(".json"):
+            baseurl_path.pop()
+
+        if len(baseurl_path) > len(url_path):
+            return get_external_browser_path(url)
+
+        for seg1, seg2 in zip(url_path, baseurl_path):
+            if seg1 == seg2:
+                url_path = url_path[1:]
+            else:
+                return get_external_browser_path(url)
+        
+        return "/" + "/".join(url_path)
+
 def create_geoparquetitems_command(cli: Group) -> Command:
     """Creates the stactools-geoparquet-items command line utility."""
 
@@ -69,13 +107,36 @@ def create_geoparquetitems_command(cli: Group) -> Command:
         help="If provided, tries to fix invalid self URLs by mapping to the source folder to the given URL. "
         + "Only applies if the given source is a local folder. Must have a slash at the end."
     )
+    @click.option(
+        "--browserlink",
+        default=False,
+        show_default=True,
+        help="Tries to add the absolute link an alternative HTML representation of the STAC Item to a column named 'browser_link'",
+        is_flag=True,
+    )
+    @click.option(
+        "--browser_url",
+        default="history",
+        help="If provided, tries to add a link to the given STAC Browser instance as an alternate link. "
+        +"This is a templated URL with a variable {path} that gets inserted by this package. "
+        +"Only works if an absolute self link is available (or created through the 'selflink'/'baseurl' parameters). "
+        +"Doesn't support query strings or fragments."
+    )
+    @click.option(
+        "--browser_catalogurl",
+        default=None,
+        help="The configured catalogUrl of the STAC Browser."
+    )
     def create_command(
         source: str,
         destination: str,
         collection: str = "",
         partition: int = 1,
         selflink: bool = False,
-        baseurl: str = None
+        baseurl: str = None,
+        browserlink: bool = False,
+        browser_url: str = None,
+        browser_catalogurl: str = None
     ) -> None:
         """Create geoparquet from STAC Items
 
@@ -83,8 +144,12 @@ def create_geoparquetitems_command(cli: Group) -> Command:
             source (str): Link to a list of STAC Items (ItemCollection) or a folder with STAC files.
             destination (str): Path where the geoparquet file will be stored.
         """
-        if baseurl is not None and not baseurl.endswith("/"):
+        if baseurl and not baseurl.endswith("/"):
             raise Exception("baseurl must end with a slash")
+        if browser_catalogurl and browser_url is None:
+            raise Exception("browser_url must be provided")
+        if browser_url and not browser_url.find(r"{path}"):
+            raise Exception("browser_url must include a path variable")
 
         p = pathlib.Path(destination)
         if p.is_dir():
@@ -143,6 +208,24 @@ def create_geoparquetitems_command(cli: Group) -> Command:
                         }
 
                         stac["links"].append(self_link)
+                    
+                    if browser_url:
+                        self_href = None      
+                        # get self link
+                        for link in stac["links"]:
+                            if is_self_link(link):
+                                self_href = link["href"]    
+                        
+                        if self_href:
+                            # create alternate link
+                            path = get_browser_path(self_href, browser_catalogurl)
+                            href = browser_url.format(path=path)
+                            alternate_link = {
+                                'href': href,
+                                'type': 'text/html',
+                                'rel': 'alternate'
+                            }
+                            stac["links"].append(alternate_link)
 
                     return stac
 
@@ -161,7 +244,7 @@ def create_geoparquetitems_command(cli: Group) -> Command:
             del paths
         
         def create_fn(items: Sequence[dict[str, Any]]) -> geopandas.GeoDataFrame:
-            return stac_geoparquet.to_geodataframe(items, add_self_link=selflink)
+            return stac_geoparquet.to_geodataframe(items, add_self_link=selflink, add_browser_link=browserlink)
 
         if bag is not None:
             print("Initialized for parallel processing")
